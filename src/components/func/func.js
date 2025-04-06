@@ -1,4 +1,5 @@
 import XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 
 // Declare this so our linter knows that tableau is a global object
@@ -203,30 +204,55 @@ const revalidateMeta = (existing) => new Promise((resolve, reject) => {
   });
 });
 
-const exportToExcel = (meta, env, filename) => new Promise((resolve, reject) => {
+const exportToExcel = async (meta, env, filename) => new Promise(async (resolve, reject) => {
   let xlsFile = "export.xlsx";
   if (filename && filename.length > 0) {
     xlsFile = filename + ".xlsx";
   }
-  buildExcelBlob(meta).then(wb => {
-    // add ignoreEC:false to prevent excel crashes during text to column
-    var wopts = { bookType:'xlsx', bookSST:false, type:'array', ignoreEC:false };
-    var wbout = XLSX.write(wb,wopts);
-    saveAs(new Blob([wbout],{type:"application/octet-stream"}), xlsFile);
-    resolve();
+    if (hasembecImage(meta)) {
+      const workbook = new ExcelJS.Workbook();
+      await buildExcelBlobWithEmbedImage(workbook, meta);
+      const buffer = await workbook.xlsx.writeBuffer();
+      saveAs(
+        new Blob([buffer], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        }),
+        xlsFile
+      );
+      resolve();
+    } else {
+      buildExcelBlob(meta).then(wb => {
+        // add ignoreEC:false to prevent excel crashes during text to column
+        var wopts = { bookType:'xlsx', bookSST:false, type:'array', ignoreEC:false };
+        var wbout = XLSX.write(wb,wopts);
+        saveAs(new Blob([wbout],{type:"application/octet-stream"}), xlsFile);
+        resolve();
+    });
+  };
   });
-});
 
+const hasembecImage = (meta) => {
+  let hasImage = false;
+  meta.forEach((sheet) => {
+    if (sheet && sheet.columns) {
+      sheet.columns.forEach((col) => {
+        if (col && col.isImage) {
+          hasImage = true;
+        }
+      });
+    }
+  });
+  return hasImage;
+};
 
 
 // krisd: move excel creation to caller (to support extra export to methodss)
 // callback receives a blob to save or transfer
-const buildExcelBlob = (meta) => new Promise((resolve, reject) => {
+const buildExcelBlob = async (wb, meta) => new Promise((resolve, reject) => {
   console.log("[func.js] Got Meta", meta);
   // func.saveSettings(meta, function(newSettings) {
     // console.log("Saved settings", newSettings);
   const worksheets = tableau.extensions.dashboardContent.dashboard.worksheets;
-  const wb = XLSX.utils.book_new();
   let totalSheets = 0;
   let sheetCount = 0;
   const sheetList = [];
@@ -286,6 +312,91 @@ const buildExcelBlob = (meta) => new Promise((resolve, reject) => {
   });
 });
 
+  const buildExcelBlobWithEmbedImage = async (workbook, meta) => {
+    console.log("[func.js] buildExcelBlob: Got Meta", meta);
+    const worksheets = tableau.extensions.dashboardContent.dashboard.worksheets;
+
+    for (const sheetMeta of meta) {
+      // 選択されていないシートはスキップ
+      if (!sheetMeta.selected) continue;
+
+      let tabName = sheetMeta.changeName || sheetMeta.sheetName;
+      tabName = tabName.replace(/[*?/\\[\]]/gi, '');
+
+      const tableauSheet = worksheets.find(s => s.name === sheetMeta.sheetName);
+      if (!tableauSheet) continue;
+
+      const summaryData = await tableauSheet.getSummaryDataAsync({ ignoreSelection: true });
+      const columns = summaryData.columns.map(col => {
+        const cMeta = sheetMeta.columns.find(x => x.name === col.fieldName) || {};
+        return {
+          ...col,
+          selected: cMeta.selected,
+          outputName: cMeta.changeName || cMeta.name,
+          isImage: cMeta.isImage || false  // 画像列フラグ
+        };
+      });
+
+      // 実データ部分をdecode
+      const decodedRows = await decodeDataset(columns, summaryData.data);
+
+      const newSheet = workbook.addWorksheet(tabName);
+
+      // まずはヘッダー行を設定（画像列含む全選択カラムのheaderを準備）
+      const selectedCols = columns.filter(c => c.selected);
+      const headers = selectedCols.map(c => c.outputName);
+      newSheet.addRow(headers); // 1行目にヘッダー
+
+      for (let rIndex = 0; rIndex < decodedRows.length; rIndex++) {
+        const rowObj = decodedRows[rIndex];
+        const rowValues = [];
+        selectedCols.forEach((col) => {
+          if (!col.isImage) {
+            rowValues.push(rowObj[col.outputName]?.v ?? null);
+          } else {
+            rowValues.push(null);
+          }
+        });
+
+        const newRow = newSheet.addRow(rowValues);
+
+        await Promise.all(selectedCols.map(async (col, colIndex) => {
+          if (!col.isImage) return;
+
+          const cellData = rowObj[col.outputName];
+          const imageUrl = cellData?.v;
+          if (!imageUrl) return;
+
+          try {
+            const resp = await fetch(imageUrl);
+            const arrayBuf = await resp.arrayBuffer();
+            const imageId = workbook.addImage({
+              buffer: arrayBuf,
+              extension: 'jpeg'
+            });
+            newSheet.addImage(imageId, {
+              tl: { col: colIndex, row: (1 + (rIndex + 1)) },
+              ext: { width: 50, height: 50 },
+              editAs: 'oneCell'
+            });
+          } catch (err) {
+            console.warn('Image fetch error:', err);
+            newRow.getCell(colIndex + 1).value = 'Image Error';
+          }
+        }));
+      }
+
+      const headerRow = newSheet.getRow(1);
+      headerRow.font = { bold: true };
+      headerRow.eachCell((cell) => {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFEFD5' },
+        };
+      });
+    }
+  };
 
 // krisd: Remove recursion to work with larger data sets
 // and translate cell data types
