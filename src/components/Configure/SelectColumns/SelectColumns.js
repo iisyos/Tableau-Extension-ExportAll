@@ -16,6 +16,7 @@ function SelectColumns(props) {
               colSelect={props.colSelect}
               changeName={props.changeName}
               changeOrder={props.changeOrder}
+              toggleIsImage={props.toggleIsImage}
               />
           </div>
         );
