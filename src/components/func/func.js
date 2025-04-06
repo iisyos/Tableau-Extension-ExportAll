@@ -363,7 +363,7 @@ const buildExcelBlob = async (meta) => new Promise((resolve, reject) => {
         });
 
         const newRow = newSheet.addRow(rowValues);
-        newRow.height = 90;
+        newRow.height = 80;
 
         await Promise.all(selectedCols.map(async (col, colIndex) => {
           if (!col.isImage) return;
@@ -380,7 +380,7 @@ const buildExcelBlob = async (meta) => new Promise((resolve, reject) => {
               extension: 'jpeg'
             });
             newSheet.addImage(imageId, {
-              tl: { col: colIndex, row: (1 + (rIndex + 1)) },
+              tl: { col: colIndex, row: (rIndex + 1) },
               ext: { width: 80, height: 80 },
               editAs: 'oneCell'
             });
