@@ -204,12 +204,13 @@ const revalidateMeta = (existing) => new Promise((resolve, reject) => {
   });
 });
 
-const exportToExcel = async (meta, env, filename) => new Promise(async (resolve, reject) => {
-  let xlsFile = "export.xlsx";
-  if (filename && filename.length > 0) {
-    xlsFile = filename + ".xlsx";
-  }
-    if (hasembecImage(meta)) {
+const exportToExcel = async (meta, env, filename) =>
+  new Promise(async (resolve, reject) => {
+    let xlsFile = "export.xlsx";
+    if (filename && filename.length > 0) {
+      xlsFile = filename + ".xlsx";
+    }
+    if (hasEmbedImage(meta)) {
       const workbook = new ExcelJS.Workbook();
       await buildExcelBlobWithEmbedImage(workbook, meta);
       const buffer = await workbook.xlsx.writeBuffer();
@@ -227,15 +228,17 @@ const exportToExcel = async (meta, env, filename) => new Promise(async (resolve,
         var wbout = XLSX.write(wb,wopts);
         saveAs(new Blob([wbout],{type:"application/octet-stream"}), xlsFile);
         resolve();
-    });
-  };
+      });
+    };
   });
 
-const hasembecImage = (meta) => {
+const hasEmbedImage = (meta) => {
   let hasImage = false;
+  console.log("[func.js] Checking for images in meta", meta);
   meta.forEach((sheet) => {
     if (sheet && sheet.columns) {
       sheet.columns.forEach((col) => {
+        console.log("[func.js] Checking column", col);
         if (col && col.isImage) {
           hasImage = true;
         }
@@ -248,11 +251,12 @@ const hasembecImage = (meta) => {
 
 // krisd: move excel creation to caller (to support extra export to methodss)
 // callback receives a blob to save or transfer
-const buildExcelBlob = async (wb, meta) => new Promise((resolve, reject) => {
+const buildExcelBlob = async (meta) => new Promise((resolve, reject) => {
   console.log("[func.js] Got Meta", meta);
   // func.saveSettings(meta, function(newSettings) {
     // console.log("Saved settings", newSettings);
   const worksheets = tableau.extensions.dashboardContent.dashboard.worksheets;
+  const wb = XLSX.utils.book_new();
   let totalSheets = 0;
   let sheetCount = 0;
   const sheetList = [];
@@ -388,13 +392,6 @@ const buildExcelBlob = async (wb, meta) => new Promise((resolve, reject) => {
 
       const headerRow = newSheet.getRow(1);
       headerRow.font = { bold: true };
-      headerRow.eachCell((cell) => {
-        cell.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FFEFD5' },
-        };
-      });
     }
   };
 
