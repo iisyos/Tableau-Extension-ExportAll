@@ -3,7 +3,6 @@
   "name": "Tableau-Extension-ExportAll",
   "alias": ["exportallextension.theinformationlab.io"],
   "version": 2,
-  "regions": ["all"],
   "routes": [
     { "src": "/exportall.html", "status": 301, "headers": { "Location": "/" }},
     { "src": "/ExportAll.trex", "status": 200,
