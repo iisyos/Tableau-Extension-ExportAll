@@ -17,7 +17,7 @@ const useStyles = makeStyles(theme => ({
     alignItems: 'center',
   },
   column: {
-    flexBasis: '50%',
+    flexBasis: '33%',
   },
   label: {
     display: 'block',
@@ -104,6 +104,16 @@ function Column(props) {
             <div className={classes.group}>
               <label className={classes.label}>Change Order</label>
               <Stepper min={1} max={props.cols.length} step={1} pageSteps={1} value={props.id + 1} onValueChange={value => props.changeOrder(value)} className={classes.stepper} />
+            </div>
+          </div>
+          <div className={classes.column}>
+            <div className={classes.group}>
+              <label className={classes.label}>Is Image</label>
+              <Checkbox
+                checked={props.isImage}
+                onChange={props.toggleIsImage}
+              >
+              </Checkbox>
             </div>
           </div>
         </AccordionDetails>

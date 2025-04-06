@@ -11,8 +11,10 @@ function Sheets(props) {
           key={col.index}
           name={col.name}
           rename={col.changeName}
+          isImage={col.isImage}
           selected={col.selected}
           select={() => props.colSelect(props.id, index)}
+          toggleIsImage={() => props.toggleIsImage(props.id, index)}
           changeName={(name) => props.changeName(props.id, index, name)}
           cols={props.cols}
           changeOrder={(newPos) => props.changeOrder(props.id, index, newPos)}
